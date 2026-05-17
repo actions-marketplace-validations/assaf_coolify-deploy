@@ -9,6 +9,7 @@ vi.mock("@actions/core", () => ({
   getInput: vi.fn<(name: string) => string>(),
   info: vi.fn<(message: string) => void>(),
   error: vi.fn<(message: string) => void>(),
+  debug: vi.fn<(message: string) => void>(),
   setOutput: vi.fn<(name: string, value: string) => void>(),
   setFailed: vi.fn<(message: string) => void>(),
 }));
@@ -117,6 +118,7 @@ describe("index.ts (GitHub Action)", () => {
       context: ".",
       logger: {
         // oxlint-disable no-unsafe-assignment
+        debug: expect.any(Function),
         info: expect.any(Function),
         error: expect.any(Function),
       },

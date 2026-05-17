@@ -33,6 +33,7 @@ function createMockLogger() {
   return {
     info: vi.fn<typeof console.info>(),
     error: vi.fn<typeof console.error>(),
+    debug: vi.fn<typeof console.debug>(),
   };
 }
 

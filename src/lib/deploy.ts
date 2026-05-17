@@ -10,6 +10,7 @@ import path from "node:path";
 const SPINNER_CHARS = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
 export interface Logger {
+  debug(message: string): void;
   info(message: string): void;
   error(message: string): void;
 }
@@ -105,6 +106,7 @@ export async function buildDockerImage({
   }
 
   try {
+    logger.debug(`Running: docker ${args.join(" ")}`);
     await new Promise<void>((resolve, reject) => {
       const child = spawn("docker", args, {
         stdio: ["inherit", "inherit", "inherit"],
@@ -118,7 +120,10 @@ export async function buildDockerImage({
         }
       });
 
-      child.on("error", reject);
+      child.on("error", (error) => {
+        logger.error(`Error: ${error.message}`);
+        reject(error);
+      });
     });
 
     logger.info("Docker image built and pushed successfully");
@@ -191,9 +196,7 @@ export async function pollDeploymentStatus({
   while (true) {
     const response = await fetch(
       new URL(`/api/v1/deployments/${deploymentUUID}`, coolifyURL),
-      {
-        headers: { Authorization: `Bearer ${coolifyToken}` },
-      },
+      { headers: { Authorization: `Bearer ${coolifyToken}` } },
     );
 
     if (!response.ok)
@@ -231,15 +234,6 @@ export async function pollDeploymentStatus({
   }
 }
 
-interface AppDetails {
-  fqdn: string;
-  health_check_enabled: boolean;
-  health_check_path: string;
-  health_check_return_code: number;
-  health_check_port: string | null;
-  ports_exposes: string;
-}
-
 /**
  * Fetches application details from Coolify API.
  */
@@ -253,21 +247,26 @@ export async function getAppDetails({
   coolifyToken: string;
   coolifyURL: string;
   logger: Logger;
-}): Promise<AppDetails> {
+}) {
   logger.info("Fetching application details...");
 
   const response = await fetch(
     new URL(`/api/v1/applications/${appUUID}`, coolifyURL),
-    {
-      headers: { Authorization: `Bearer ${coolifyToken}` },
-    },
+    { headers: { Authorization: `Bearer ${coolifyToken}` } },
   );
   if (!response.ok)
     throw new Error(
       `Failed to fetch application details: ${response.statusText}`,
     );
 
-  const data = (await response.json()) as AppDetails;
+  const data = (await response.json()) as {
+    fqdn: string;
+    health_check_enabled: boolean;
+    health_check_path: string;
+    health_check_return_code: number;
+    health_check_port: string | null;
+    ports_exposes: string;
+  };
   logger.info(`Application FQDN: ${data.fqdn}`);
   logger.info(
     `Healthcheck: ${data.health_check_enabled ? "enabled" : "disabled"} at ${data.health_check_path || "/"}`,

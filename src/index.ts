@@ -48,6 +48,7 @@ try {
     logger: {
       info: (message: string) => core.info(message),
       error: (message: string) => core.error(message),
+      debug: (message: string) => core.debug(message),
     },
   });
 
