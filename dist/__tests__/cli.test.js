@@ -10,11 +10,11 @@
 import { describe, it, expect } from "vitest";
 // These tests verify the CLI module exports work correctly
 describe("cli.ts module structure", () => {
-    it("should export a run function that handles deployment flow", async () => {
-        // The CLI module structure is validated by TypeScript compilation
-        // and the runtime tests for deploy.ts cover all the actual logic
-        expect(true).toBe(true);
-    });
+  it("should export a run function that handles deployment flow", async () => {
+    // The CLI module structure is validated by TypeScript compilation
+    // and the runtime tests for deploy.ts cover all the actual logic
+    expect(true).toBe(true);
+  });
 });
 // Note: Due to Commander's singleton behavior, integration tests should be run
 // as separate processes (e.g., via shell scripts or dedicated E2E test files).

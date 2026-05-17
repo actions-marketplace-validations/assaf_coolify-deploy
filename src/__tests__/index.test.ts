@@ -30,10 +30,10 @@ vi.mock("node:path", () => ({
   ),
 }));
 
-// Import after mocks
-import * as core from "@actions/core";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+// Import after mocks
+import * as core from "@actions/core";
 import { deployApplication } from "../lib/deploy.js";
 
 describe("index.ts (GitHub Action)", () => {

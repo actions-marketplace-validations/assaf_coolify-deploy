@@ -5,9 +5,9 @@
  * a deployment on a Coolify instance and monitors the deployment status.
  */
 
-import * as core from "@actions/core";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import * as core from "@actions/core";
 import { deployApplication } from "./lib/deploy.js";
 
 /**
