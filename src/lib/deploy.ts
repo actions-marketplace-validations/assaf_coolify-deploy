@@ -373,7 +373,7 @@ export async function verifyHealthcheck({
   }
 }
 
-export async function configureAndVerifyHealthcheck({
+async function configureAndVerifyHealthcheck({
   appUUID,
   coolifyToken,
   coolifyURL,
