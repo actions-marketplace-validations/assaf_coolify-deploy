@@ -373,6 +373,44 @@ export async function verifyHealthcheck({
   }
 }
 
+export async function configureAndVerifyHealthcheck({
+  appUUID,
+  coolifyToken,
+  coolifyURL,
+  healthcheckPath,
+  healthcheckTimeout,
+  logger,
+}: {
+  appUUID: string;
+  coolifyToken: string;
+  coolifyURL: string;
+  healthcheckPath: string;
+  healthcheckTimeout: number;
+  logger: Logger;
+}): Promise<string> {
+  const appDetails = await getAppDetails({
+    appUUID,
+    coolifyToken,
+    coolifyURL,
+    logger,
+  });
+
+  await updateHealthcheck({
+    appUUID,
+    coolifyToken,
+    coolifyURL,
+    healthcheckPath,
+    logger,
+  });
+
+  return verifyHealthcheck({
+    fqdn: appDetails.fqdn,
+    healthcheckPath: appDetails.health_check_path || "/",
+    timeout: healthcheckTimeout,
+    logger,
+  });
+}
+
 /**
  * Runs the complete deployment pipeline: find app, build image, deploy, healthcheck.
  */
@@ -417,25 +455,12 @@ export async function deployApplication(
     logger,
   });
 
-  const appDetails = await getAppDetails({
-    appUUID,
-    coolifyToken,
-    coolifyURL,
-    logger,
-  });
-
-  await updateHealthcheck({
+  const healthcheckUrl = await configureAndVerifyHealthcheck({
     appUUID,
     coolifyToken,
     coolifyURL,
     healthcheckPath,
-    logger,
-  });
-
-  const healthcheckUrl = await verifyHealthcheck({
-    fqdn: appDetails.fqdn,
-    healthcheckPath: appDetails.health_check_path || "/",
-    timeout: healthcheckTimeout,
+    healthcheckTimeout,
     logger,
   });
 

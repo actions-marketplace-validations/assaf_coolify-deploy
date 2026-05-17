@@ -19,8 +19,21 @@ vi.mock("../lib/deploy.js", () => ({
     vi.fn<() => Promise<{ deploymentUUID: string; healthcheckUrl: string }>>(),
 }));
 
+vi.mock("node:fs", () => ({
+  existsSync: vi.fn<(path: string) => boolean>(),
+  readFileSync: vi.fn<(path: string, encoding: string) => string>(),
+}));
+
+vi.mock("node:path", () => ({
+  resolve: vi.fn<(...args: string[]) => string>((...args: string[]) =>
+    args.join("/"),
+  ),
+}));
+
 // Import after mocks
 import * as core from "@actions/core";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { deployApplication } from "../lib/deploy.js";
 
 describe("index.ts (GitHub Action)", () => {
@@ -36,6 +49,7 @@ describe("index.ts (GitHub Action)", () => {
         image: "ghcr.io/user/app:v1",
         "coolify-token": "test-token",
         "env-vars": "",
+        "env-file": "",
         "healthcheck-path": "/",
         "healthcheck-timeout": "60",
       };
@@ -61,6 +75,7 @@ describe("index.ts (GitHub Action)", () => {
         image: "ghcr.io/user/app:v1",
         "coolify-token": "test-token",
         "env-vars": "",
+        "env-file": "",
         "healthcheck-path": "/",
         "healthcheck-timeout": "60",
       };
@@ -126,11 +141,18 @@ describe("index.ts (GitHub Action)", () => {
         image: "ghcr.io/user/app:v1",
         "coolify-token": "test-token",
         "env-vars": "NODE_ENV=production\nAPI_KEY=secret",
+        "env-file": "",
         "healthcheck-path": "/",
         "healthcheck-timeout": "60",
       };
       return inputs[name] ?? "";
     });
+
+    vi.mocked(existsSync).mockReturnValue(false);
+    vi.mocked(readFileSync).mockReturnValue("");
+    vi.mocked(resolve).mockImplementation((...args: string[]) =>
+      args.join("/"),
+    );
 
     await import("../index.js");
 
@@ -151,6 +173,7 @@ describe("index.ts (GitHub Action)", () => {
         image: "ghcr.io/user/app:v1",
         "coolify-token": "test-token",
         "env-vars": "",
+        "env-file": "",
         "healthcheck-path": "/api/health",
         "healthcheck-timeout": "120",
       };
@@ -177,6 +200,7 @@ describe("index.ts (GitHub Action)", () => {
         image: "ghcr.io/user/app:v1",
         "coolify-token": "test-token",
         "env-vars": "",
+        "env-file": "",
         "healthcheck-path": "/health",
         "healthcheck-timeout": "60",
       };
@@ -202,6 +226,7 @@ describe("index.ts (GitHub Action)", () => {
         image: "ghcr.io/user/app:v1",
         "coolify-token": "test-token",
         "env-vars": "",
+        "env-file": "",
         "healthcheck-path": "/health",
         "healthcheck-timeout": "60",
       };
@@ -362,11 +387,101 @@ describe("index.ts (GitHub Action)", () => {
 
     // Verify optional inputs were requested
     expect(core.getInput).toHaveBeenCalledWith("env-vars", { required: false });
+    expect(core.getInput).toHaveBeenCalledWith("env-file", { required: false });
     expect(core.getInput).toHaveBeenCalledWith("healthcheck-path", {
       required: false,
     });
     expect(core.getInput).toHaveBeenCalledWith("healthcheck-timeout", {
       required: false,
+    });
+  });
+
+  it("should pass env-file content to deployApplication when env-file is provided", async () => {
+    vi.mocked(core.getInput).mockImplementation((name: string) => {
+      const inputs: Record<string, string> = {
+        "coolify-url": "https://coolify.example.com",
+        "app-name": "my-app",
+        image: "ghcr.io/user/app:v1",
+        "coolify-token": "test-token",
+        "env-vars": "",
+        "env-file": ".env.production",
+        "healthcheck-path": "/",
+        "healthcheck-timeout": "60",
+      };
+      return inputs[name] ?? "";
+    });
+
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(
+      "NODE_ENV=production\nDB_HOST=localhost",
+    );
+
+    await import("../index.js");
+
+    await vi.waitFor(() => {
+      expect(deployApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          envVars: "NODE_ENV=production\nDB_HOST=localhost",
+        }),
+      );
+    });
+  });
+
+  it("should merge env-file and env-vars with env-vars overriding", async () => {
+    vi.mocked(core.getInput).mockImplementation((name: string) => {
+      const inputs: Record<string, string> = {
+        "coolify-url": "https://coolify.example.com",
+        "app-name": "my-app",
+        image: "ghcr.io/user/app:v1",
+        "coolify-token": "test-token",
+        "env-vars": "NODE_ENV=staging\nAPI_KEY=inline",
+        "env-file": ".env",
+        "healthcheck-path": "/",
+        "healthcheck-timeout": "60",
+      };
+      return inputs[name] ?? "";
+    });
+
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(
+      "NODE_ENV=production\nDB_HOST=localhost",
+    );
+
+    await import("../index.js");
+
+    await vi.waitFor(() => {
+      expect(deployApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          envVars:
+            "NODE_ENV=production\nDB_HOST=localhost\nNODE_ENV=staging\nAPI_KEY=inline",
+        }),
+      );
+    });
+  });
+
+  it("should fail if env-file does not exist", async () => {
+    vi.mocked(core.getInput).mockImplementation((name: string) => {
+      const inputs: Record<string, string> = {
+        "coolify-url": "https://coolify.example.com",
+        "app-name": "my-app",
+        image: "ghcr.io/user/app:v1",
+        "coolify-token": "test-token",
+        "env-vars": "",
+        "env-file": "nonexistent.env",
+        "healthcheck-path": "/",
+        "healthcheck-timeout": "60",
+      };
+      return inputs[name] ?? "";
+    });
+
+    vi.mocked(existsSync).mockReturnValue(false);
+
+    await import("../index.js");
+
+    await vi.waitFor(() => {
+      expect(core.setFailed).toHaveBeenCalledWith(
+        expect.stringContaining("Env file not found"),
+      );
     });
   });
 });

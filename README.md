@@ -224,6 +224,69 @@ env-vars: |
 5. **Monitor Status**: Polls the deployment status until completion or failure
 6. **Verify Healthcheck**: Fetches application details, configures healthcheck if needed, and verifies the endpoint is responding
 
+## Environment Variables & Build Secrets
+
+When you pass an env file with `--env-file` (CLI) or `env-vars` (Action), the values don't end up in your running container. They go to Docker as **build secrets** — available only during `docker buildx build`. That's by design: the whole point is keeping sensitive things like registry tokens and API keys out of your final image.
+
+Here's what happens under the hood:
+
+1. The CLI reads your env file content as a raw string
+2. If it's non-empty, writes it to a temporary file on disk
+3. Passes the file to Docker as `--secret id=env,src=/tmp/coolify-env-...`
+4. Deletes the temp file after the build finishes
+
+The secret lives on disk for a few seconds, gets used during the build, and vanishes.
+
+### Configuring Your Dockerfile
+
+Secrets don't show up automatically — your Dockerfile has to ask for them. Add `--mount=type=secret,id=env` to a `RUN` instruction to mount `/run/secrets/env` during that step.
+
+Three ways to use it:
+
+### Pattern A: Source the secret for a single step (recommended)
+
+Need a registry token for `npm install` but don't want it sticking around in the image? Source the secret into just that one `RUN` step:
+
+```dockerfile
+RUN --mount=type=secret,id=env \
+    . /run/secrets/env && \
+    npm ci
+```
+
+The env vars live only for this command — they don't persist in the final image.
+
+### Pattern B: Copy the secret into the image
+
+If your application reads a `.env` file at runtime (via `dotenv` or similar), copy the secret directly:
+
+```dockerfile
+RUN --mount=type=secret,id=env cp /run/secrets/env .env
+```
+
+**Warning**: This bakes the secret into the image. Only use this for private registries (GHCR, ECR, etc.) where the image never leaves your control.
+
+### Pattern C: Skip secrets entirely (private registries)
+
+If you're pushing to a private registry and don't mind the env file living in the image, skip Docker secrets altogether. Generate `.env` before the build and `COPY` it in:
+
+```bash
+# Generate .env before building
+infisical export --env prod --format=dotenv > .env
+
+coolify-ghcr-deploy \
+  --coolify-url https://coolify.example.com \
+  --app-name my-app \
+  --image ghcr.io/org/app:latest \
+  --coolify-token $COOLIFY_TOKEN \
+  --env-file .env
+```
+
+```dockerfile
+COPY .env .env
+```
+
+You get both: `--env-file` still feeds the secret to build `RUN` steps (handy for npm install tokens), and `COPY` puts the file in the image for runtime access.
+
 ## Healthcheck Verification
 
 After deployment completes, the action automatically verifies that your application is healthy by:

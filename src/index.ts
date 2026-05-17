@@ -6,6 +6,8 @@
  */
 
 import * as core from "@actions/core";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { deployApplication } from "./lib/deploy.js";
 
 const logger = {
@@ -26,7 +28,16 @@ async function run(): Promise<void> {
     const appName = core.getInput("app-name", { required: true });
     const image = core.getInput("image", { required: true });
     const token = core.getInput("coolify-token", { required: true });
-    const envVars = core.getInput("env-vars", { required: false });
+    let envVars = core.getInput("env-vars", { required: false });
+    const envFile = core.getInput("env-file", { required: false });
+
+    if (envFile) {
+      const envFilePath = resolve(process.env.GITHUB_WORKSPACE || ".", envFile);
+      if (!existsSync(envFilePath))
+        throw new Error(`Env file not found: ${envFilePath}`);
+      const fileContent = readFileSync(envFilePath, "utf-8");
+      envVars = envVars ? fileContent + "\n" + envVars : fileContent;
+    }
     const healthcheckPath =
       core.getInput("healthcheck-path", { required: false }) || "/";
     const healthcheckTimeout = parseInt(
