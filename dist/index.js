@@ -27770,6 +27770,7 @@ try {
     const token = _actions_core__WEBPACK_IMPORTED_MODULE_2__/* .getInput */ .V4("coolify-token", { required: true });
     let envVars = _actions_core__WEBPACK_IMPORTED_MODULE_2__/* .getInput */ .V4("env-vars", { required: false });
     const envFile = _actions_core__WEBPACK_IMPORTED_MODULE_2__/* .getInput */ .V4("env-file", { required: false });
+    _actions_core__WEBPACK_IMPORTED_MODULE_2__/* .info */ .pq(`Starting deployment... ${envFile}`); // debuf
     if (envFile) {
         const envFilePath = (0,node_path__WEBPACK_IMPORTED_MODULE_1__.resolve)(process.env.GITHUB_WORKSPACE || ".", envFile);
         if (!(0,node_fs__WEBPACK_IMPORTED_MODULE_0__.existsSync)(envFilePath))
@@ -27792,6 +27793,7 @@ try {
         logger: {
             info: (message) => _actions_core__WEBPACK_IMPORTED_MODULE_2__/* .info */ .pq(message),
             error: (message) => _actions_core__WEBPACK_IMPORTED_MODULE_2__/* .error */ .z3(message),
+            debug: (message) => _actions_core__WEBPACK_IMPORTED_MODULE_2__/* .debug */ .Yz(message),
         },
     });
     _actions_core__WEBPACK_IMPORTED_MODULE_2__/* .setOutput */ .uH("deployment-uuid", deploymentUUID);
@@ -27864,7 +27866,6 @@ async function findAppUUID({ coolifyURL, appName, coolifyToken, logger, }) {
 async function buildDockerImage({ image, envVars, logger, context, }) {
     logger.info("Building Docker image...");
     const hasEnvVars = envVars && envVars.trim().length > 0;
-    let secretFile;
     const args = [
         "buildx",
         "build",
@@ -27876,31 +27877,28 @@ async function buildDockerImage({ image, envVars, logger, context, }) {
         context,
     ];
     if (hasEnvVars) {
-        secretFile = external_node_path_default().join((0,external_node_os_namespaceObject.tmpdir)(), `coolify-env-${Date.now()}`);
+        const secretFile = external_node_path_default().join((0,external_node_os_namespaceObject.tmpdir)(), `coolify-env-${Date.now()}`);
         external_node_fs_default().writeFileSync(secretFile, envVars);
         args.push("--secret", `id=env,src=${secretFile}`);
     }
-    try {
-        await new Promise((resolve, reject) => {
-            const child = (0,external_node_child_process_namespaceObject.spawn)("docker", args, {
-                stdio: ["inherit", "inherit", "inherit"],
-            });
-            child.on("close", (code) => {
-                if (code === 0)
-                    resolve();
-                else {
-                    const cmd = `docker ${args.join(" ")}`;
-                    reject(new Error(`Command failed with code ${code}: ${cmd}`));
-                }
-            });
-            child.on("error", reject);
+    await new Promise((resolve, reject) => {
+        const child = (0,external_node_child_process_namespaceObject.spawn)("docker", args, {
+            stdio: ["inherit", "inherit", "inherit"],
         });
-        logger.info("Docker image built and pushed successfully");
-    }
-    finally {
-        if (secretFile)
-            external_node_fs_default().unlinkSync(secretFile);
-    }
+        child.on("close", (code) => {
+            if (code === 0)
+                resolve();
+            else {
+                const cmd = `docker ${args.join(" ")}`;
+                reject(new Error(`Command failed with code ${code}: ${cmd}`));
+            }
+        });
+        child.on("error", (error) => {
+            logger.error(`Error: ${error.message}`);
+            reject(error);
+        });
+    });
+    logger.info("Docker image built and pushed successfully");
 }
 /**
  * Starts a deployment on Coolify.
@@ -27932,9 +27930,7 @@ async function pollDeploymentStatus({ deploymentUUID, coolifyToken, coolifyURL, 
     const startTime = Date.now();
     const timeoutMs = timeout * 1000;
     while (true) {
-        const response = await fetch(new URL(`/api/v1/deployments/${deploymentUUID}`, coolifyURL), {
-            headers: { Authorization: `Bearer ${coolifyToken}` },
-        });
+        const response = await fetch(new URL(`/api/v1/deployments/${deploymentUUID}`, coolifyURL), { headers: { Authorization: `Bearer ${coolifyToken}` } });
         if (!response.ok)
             throw new Error(`Failed to get deployment status: ${response.statusText}`);
         const data = (await response.json());
@@ -27962,9 +27958,7 @@ async function pollDeploymentStatus({ deploymentUUID, coolifyToken, coolifyURL, 
  */
 async function getAppDetails({ appUUID, coolifyToken, coolifyURL, logger, }) {
     logger.info("Fetching application details...");
-    const response = await fetch(new URL(`/api/v1/applications/${appUUID}`, coolifyURL), {
-        headers: { Authorization: `Bearer ${coolifyToken}` },
-    });
+    const response = await fetch(new URL(`/api/v1/applications/${appUUID}`, coolifyURL), { headers: { Authorization: `Bearer ${coolifyToken}` } });
     if (!response.ok)
         throw new Error(`Failed to fetch application details: ${response.statusText}`);
     const data = (await response.json());
@@ -28299,6 +28293,7 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("util");
 
 // EXPORTS
 __nccwpck_require__.d(__webpack_exports__, {
+  Yz: () => (/* binding */ core_debug),
   z3: () => (/* binding */ error),
   V4: () => (/* binding */ getInput),
   pq: () => (/* binding */ info),
@@ -28306,7 +28301,7 @@ __nccwpck_require__.d(__webpack_exports__, {
   uH: () => (/* binding */ setOutput)
 });
 
-// UNUSED EXPORTS: ExitCode, addPath, debug, endGroup, exportVariable, getBooleanInput, getIDToken, getMultilineInput, getState, group, isDebug, markdownSummary, notice, platform, saveState, setCommandEcho, setSecret, startGroup, summary, toPlatformPath, toPosixPath, toWin32Path, warning
+// UNUSED EXPORTS: ExitCode, addPath, endGroup, exportVariable, getBooleanInput, getIDToken, getMultilineInput, getState, group, isDebug, markdownSummary, notice, platform, saveState, setCommandEcho, setSecret, startGroup, summary, toPlatformPath, toPosixPath, toWin32Path, warning
 
 ;// CONCATENATED MODULE: external "os"
 const external_os_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("os");
@@ -31135,7 +31130,7 @@ function isDebug() {
  * @param message debug message
  */
 function core_debug(message) {
-    issueCommand('debug', {}, message);
+    command_issueCommand('debug', {}, message);
 }
 /**
  * Adds an error issue

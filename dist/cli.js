@@ -7,14 +7,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { program } from "commander";
 import { deployApplication } from "./lib/deploy.js";
-const logger = {
-    info(message) {
-        console.info(message);
-    },
-    error(message) {
-        console.error(message);
-    },
-};
 program
     .option("--coolify-url <url>", "Coolify instance URL (or COOLIFY_URL env)")
     .option("--app-name <name>", "Application name in Coolify (or APP_NAME env)")
@@ -35,28 +27,28 @@ const healthcheckTimeout = parseInt(options.healthcheckTimeout ?? process.env.HE
 let token = options.coolifyToken ?? process.env.COOLIFY_TOKEN;
 if (!token && options.coolifyTokenFile) {
     if (!existsSync(options.coolifyTokenFile)) {
-        logger.error(`Token file not found: ${options.coolifyTokenFile}`);
+        console.error(`Token file not found: ${options.coolifyTokenFile}`);
         process.exit(1);
     }
     token = readFileSync(options.coolifyTokenFile, "utf-8").trim();
 }
 if (!coolifyURL || !appName || !image || !token) {
-    logger.error("Missing required options:");
+    console.error("Missing required options:");
     if (!coolifyURL)
-        logger.error("  --coolify-url or COOLIFY_URL");
+        console.error("  --coolify-url or COOLIFY_URL");
     if (!appName)
-        logger.error("  --app-name or APP_NAME");
+        console.error("  --app-name or APP_NAME");
     if (!image)
-        logger.error("  --image or IMAGE");
+        console.error("  --image or IMAGE");
     if (!token)
-        logger.error("  --coolify-token, COOLIFY_TOKEN, or --coolify-token-file");
+        console.error("  --coolify-token, COOLIFY_TOKEN, or --coolify-token-file");
     process.exit(1);
 }
 const context = options.context ?? ".";
 let envVars;
 if (options.envFile) {
     if (!existsSync(options.envFile)) {
-        logger.error(`Env file not found: ${options.envFile}`);
+        console.error(`Env file not found: ${options.envFile}`);
         process.exit(1);
     }
     envVars = readFileSync(options.envFile, "utf-8");
@@ -71,14 +63,18 @@ try {
         healthcheckPath,
         healthcheckTimeout,
         context,
-        logger,
+        logger: {
+            debug: (message) => console.debug(message),
+            error: (message) => console.error(message),
+            info: (message) => console.info(message),
+        },
     });
-    logger.info(`Deployment UUID: ${deploymentUUID}`);
+    console.info(`Deployment UUID: ${deploymentUUID}`);
     process.exit(0);
 }
 catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred";
-    logger.error(message);
+    console.error(message);
     process.exit(1);
 }
 //# sourceMappingURL=cli.js.map

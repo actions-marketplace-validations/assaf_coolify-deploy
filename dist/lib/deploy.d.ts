@@ -2,6 +2,7 @@
  * Shared deploy logic for GitHub Action and CLI.
  */
 export interface Logger {
+    debug(message: string): void;
     info(message: string): void;
     error(message: string): void;
 }
@@ -57,14 +58,6 @@ export declare function pollDeploymentStatus({ deploymentUUID, coolifyToken, coo
     timeout: number;
     logger: Logger;
 }): Promise<void>;
-interface AppDetails {
-    fqdn: string;
-    health_check_enabled: boolean;
-    health_check_path: string;
-    health_check_return_code: number;
-    health_check_port: string | null;
-    ports_exposes: string;
-}
 /**
  * Fetches application details from Coolify API.
  */
@@ -73,7 +66,14 @@ export declare function getAppDetails({ appUUID, coolifyToken, coolifyURL, logge
     coolifyToken: string;
     coolifyURL: string;
     logger: Logger;
-}): Promise<AppDetails>;
+}): Promise<{
+    fqdn: string;
+    health_check_enabled: boolean;
+    health_check_path: string;
+    health_check_return_code: number;
+    health_check_port: string | null;
+    ports_exposes: string;
+}>;
 /**
  * Updates application healthcheck settings on Coolify.
  */
@@ -99,5 +99,4 @@ export declare function verifyHealthcheck({ fqdn, healthcheckPath, timeout, logg
  * Runs the complete deployment pipeline: find app, build image, deploy, healthcheck.
  */
 export declare function deployApplication(params: DeployApplicationParams): Promise<DeployApplicationResult>;
-export {};
 //# sourceMappingURL=deploy.d.ts.map

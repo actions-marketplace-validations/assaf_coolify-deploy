@@ -31,7 +31,6 @@ export async function findAppUUID({ coolifyURL, appName, coolifyToken, logger, }
 export async function buildDockerImage({ image, envVars, logger, context, }) {
     logger.info("Building Docker image...");
     const hasEnvVars = envVars && envVars.trim().length > 0;
-    let secretFile;
     const args = [
         "buildx",
         "build",
@@ -43,31 +42,28 @@ export async function buildDockerImage({ image, envVars, logger, context, }) {
         context,
     ];
     if (hasEnvVars) {
-        secretFile = path.join(tmpdir(), `coolify-env-${Date.now()}`);
+        const secretFile = path.join(tmpdir(), `coolify-env-${Date.now()}`);
         fs.writeFileSync(secretFile, envVars);
         args.push("--secret", `id=env,src=${secretFile}`);
     }
-    try {
-        await new Promise((resolve, reject) => {
-            const child = spawn("docker", args, {
-                stdio: ["inherit", "inherit", "inherit"],
-            });
-            child.on("close", (code) => {
-                if (code === 0)
-                    resolve();
-                else {
-                    const cmd = `docker ${args.join(" ")}`;
-                    reject(new Error(`Command failed with code ${code}: ${cmd}`));
-                }
-            });
-            child.on("error", reject);
+    await new Promise((resolve, reject) => {
+        const child = spawn("docker", args, {
+            stdio: ["inherit", "inherit", "inherit"],
         });
-        logger.info("Docker image built and pushed successfully");
-    }
-    finally {
-        if (secretFile)
-            fs.unlinkSync(secretFile);
-    }
+        child.on("close", (code) => {
+            if (code === 0)
+                resolve();
+            else {
+                const cmd = `docker ${args.join(" ")}`;
+                reject(new Error(`Command failed with code ${code}: ${cmd}`));
+            }
+        });
+        child.on("error", (error) => {
+            logger.error(`Error: ${error.message}`);
+            reject(error);
+        });
+    });
+    logger.info("Docker image built and pushed successfully");
 }
 /**
  * Starts a deployment on Coolify.
@@ -99,9 +95,7 @@ export async function pollDeploymentStatus({ deploymentUUID, coolifyToken, cooli
     const startTime = Date.now();
     const timeoutMs = timeout * 1000;
     while (true) {
-        const response = await fetch(new URL(`/api/v1/deployments/${deploymentUUID}`, coolifyURL), {
-            headers: { Authorization: `Bearer ${coolifyToken}` },
-        });
+        const response = await fetch(new URL(`/api/v1/deployments/${deploymentUUID}`, coolifyURL), { headers: { Authorization: `Bearer ${coolifyToken}` } });
         if (!response.ok)
             throw new Error(`Failed to get deployment status: ${response.statusText}`);
         const data = (await response.json());
@@ -129,9 +123,7 @@ export async function pollDeploymentStatus({ deploymentUUID, coolifyToken, cooli
  */
 export async function getAppDetails({ appUUID, coolifyToken, coolifyURL, logger, }) {
     logger.info("Fetching application details...");
-    const response = await fetch(new URL(`/api/v1/applications/${appUUID}`, coolifyURL), {
-        headers: { Authorization: `Bearer ${coolifyToken}` },
-    });
+    const response = await fetch(new URL(`/api/v1/applications/${appUUID}`, coolifyURL), { headers: { Authorization: `Bearer ${coolifyToken}` } });
     if (!response.ok)
         throw new Error(`Failed to fetch application details: ${response.statusText}`);
     const data = (await response.json());
