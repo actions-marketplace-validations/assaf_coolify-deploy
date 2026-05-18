@@ -23,10 +23,12 @@ try {
 
   if (envFile) {
     const envFilePath = resolve(process.env.GITHUB_WORKSPACE || ".", envFile);
+    core.debug(`Resolved env file path: ${envFilePath}`);
     if (!existsSync(envFilePath))
       throw new Error(`Env file not found: ${envFilePath}`);
     const fileContent = readFileSync(envFilePath, "utf-8");
     envVars = envVars ? `${fileContent}\n${envVars}` : fileContent;
+    core.debug(`Env vars: ${envVars}`);
   }
   const healthcheckPath =
     core.getInput("healthcheck-path", { required: false }) || "/";
