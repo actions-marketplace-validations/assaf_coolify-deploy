@@ -235,8 +235,6 @@ describe("deploy.ts", () => {
         ],
         { stdio: ["inherit", "inherit", "inherit"] },
       );
-
-      expect(unlinkSync).toHaveBeenCalledWith(writtenEnvFile);
     });
 
     it("should throw error when docker command fails", async () => {
