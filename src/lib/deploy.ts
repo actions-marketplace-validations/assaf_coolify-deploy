@@ -106,7 +106,7 @@ export async function buildDockerImage({
   }
 
   try {
-    logger.debug(`Running: docker ${args.join(" ")}`);
+    logger.info(`Running: docker ${args.join(" ")}`); // debug
     await new Promise<void>((resolve, reject) => {
       const child = spawn("docker", args, {
         stdio: ["inherit", "inherit", "inherit"],

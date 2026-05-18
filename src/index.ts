@@ -21,14 +21,15 @@ try {
   let envVars = core.getInput("env-vars", { required: false });
   const envFile = core.getInput("env-file", { required: false });
 
+  core.info(`Starting deployment... ${envFile}`); // debuf
   if (envFile) {
     const envFilePath = resolve(process.env.GITHUB_WORKSPACE || ".", envFile);
-    core.debug(`Resolved env file path: ${envFilePath}`);
+    core.info(`Resolved env file path: ${envFilePath}`); // debug
     if (!existsSync(envFilePath))
       throw new Error(`Env file not found: ${envFilePath}`);
     const fileContent = readFileSync(envFilePath, "utf-8");
     envVars = envVars ? `${fileContent}\n${envVars}` : fileContent;
-    core.debug(`Env vars: ${envVars}`);
+    core.info(`Env vars: ${envVars}`); // debug
   }
   const healthcheckPath =
     core.getInput("healthcheck-path", { required: false }) || "/";
