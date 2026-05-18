@@ -86,7 +86,7 @@ export async function buildDockerImage({
   logger.info("Building Docker image...");
 
   const hasEnvVars = envVars && envVars.trim().length > 0;
-  let secretFile: string | undefined;
+  logger.info(`hasEnvVars: ${hasEnvVars}`); // debug
 
   const args = [
     "buildx",
@@ -100,36 +100,33 @@ export async function buildDockerImage({
   ];
 
   if (hasEnvVars) {
-    secretFile = path.join(tmpdir(), `coolify-env-${Date.now()}`);
+    const secretFile = path.join(tmpdir(), `coolify-env-${Date.now()}`);
+    logger.info(`Writing env vars to secret file: ${secretFile}`); // debug
     fs.writeFileSync(secretFile, envVars);
     args.push("--secret", `id=env,src=${secretFile}`);
   }
 
-  try {
-    logger.info(`Running: docker ${args.join(" ")}`); // debug
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn("docker", args, {
-        stdio: ["inherit", "inherit", "inherit"],
-      });
-
-      child.on("close", (code) => {
-        if (code === 0) resolve();
-        else {
-          const cmd = `docker ${args.join(" ")}`;
-          reject(new Error(`Command failed with code ${code}: ${cmd}`));
-        }
-      });
-
-      child.on("error", (error) => {
-        logger.error(`Error: ${error.message}`);
-        reject(error);
-      });
+  logger.info(`Running: docker ${args.join(" ")}`); // debug
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("docker", args, {
+      stdio: ["inherit", "inherit", "inherit"],
     });
 
-    logger.info("Docker image built and pushed successfully");
-  } finally {
-    if (secretFile) fs.unlinkSync(secretFile);
-  }
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else {
+        const cmd = `docker ${args.join(" ")}`;
+        reject(new Error(`Command failed with code ${code}: ${cmd}`));
+      }
+    });
+
+    child.on("error", (error) => {
+      logger.error(`Error: ${error.message}`);
+      reject(error);
+    });
+  });
+
+  logger.info("Docker image built and pushed successfully");
 }
 
 /**

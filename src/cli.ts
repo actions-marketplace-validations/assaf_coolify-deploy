@@ -94,7 +94,6 @@ try {
     healthcheckTimeout,
     context,
     logger: {
-      // oxlint-disable no-console
       debug: (message: string) => console.debug(message),
       error: (message: string) => console.error(message),
       info: (message: string) => console.info(message),
