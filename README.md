@@ -185,6 +185,7 @@ jobs:
 | `image`               | Docker image name (e.g., `ghcr.io/org/app:latest`)         | Yes      |         |
 | `coolify-token`       | Coolify API token                                          | Yes      |         |
 | `env-vars`            | Environment variables in dotenv format                     | No       |         |
+| `env-file`            | Path to a dotenv file to pass as a Docker build secret     | No       |         |
 | `healthcheck-path`    | Healthcheck path (default: `/`)                            | No       | `/`     |
 | `healthcheck-timeout` | Healthcheck timeout in seconds                             | No       | `60`    |
 
@@ -194,6 +195,57 @@ jobs:
 | ----------------- | --------------------------------------------- |
 | `deployment-uuid` | UUID of the deployment in Coolify             |
 | `healthcheck-url` | Full URL of the verified healthcheck endpoint |
+
+### Using `env-file` with Docker Build Secrets
+
+The `env-file` input passes environment variables into the Docker build as a [BuildKit secret](https://docs.docker.com/build/building/secrets/) mounted at `id=env`. Your Dockerfile **must** explicitly mount and source it:
+
+```dockerfile
+# Builder stage — export secrets before building
+RUN --mount=type=secret,id=env,required=true \
+  set -a; . /run/secrets/env; set +a && \
+  pnpm run build
+
+# Runner stage — copy for runtime (secret only scoped to one RUN)
+RUN --mount=type=secret,id=env,required=true \
+  cp /run/secrets/env .env && chmod 644 .env
+```
+
+> **Important**: The `--secret` mount is scoped to a _single_ `RUN` command. If you need the env file at runtime, copy it to disk inside the mount (as shown above) so it persists to the final image.
+
+#### Sourcing format
+
+When using [Infisical](https://infisical.com/) (via the `Infisical/secrets-action` or `infisical export`), secrets are written in single-quoted format: `KEY='value'`. Source them with:
+
+```bash
+set -a; . /run/secrets/env; set +a   # ✅ shell-native, handles quotes
+```
+
+Avoid `export $(cat file | xargs)` — it breaks on special characters and empty lines.
+
+#### Complete Infisical → Docker example
+
+```yaml
+# GitHub Actions workflow
+- name: Get production secrets
+  uses: Infisical/secrets-action@v1
+  with:
+    client-id: ${{ env.INFISICAL_CLIENT_ID }}
+    client-secret: ${{ env.INFISICAL_CLIENT_SECRET }}
+    env-slug: prod
+    project-slug: ${{ env.INFISICAL_PROJECT_SLUG }}
+    export-type: file
+    file-output-path: "/.env"
+
+- name: Deploy to Coolify
+  uses: assaf/coolify-deploy@v1
+  with:
+    coolify-url: https://coolify.example.com
+    app-name: my-app
+    image: ghcr.io/org/app:latest
+    coolify-token: ${{ secrets.COOLIFY_TOKEN }}
+    env-file: ".env"
+```
 
 ## Environment Variables
 

@@ -1,6 +1,6 @@
 {
   "name": "coolify-ghcr-deploy",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Deploy Docker images to Coolify via GitHub Container Registry",
   "keywords": [
     "container",

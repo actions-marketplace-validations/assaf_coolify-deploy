@@ -86,7 +86,6 @@ export async function buildDockerImage({
   logger.info("Building Docker image...");
 
   const hasEnvVars = envVars && envVars.trim().length > 0;
-  logger.info(`hasEnvVars: ${hasEnvVars}`); // debug
 
   const args = [
     "buildx",
@@ -101,12 +100,10 @@ export async function buildDockerImage({
 
   if (hasEnvVars) {
     const secretFile = path.join(tmpdir(), `coolify-env-${Date.now()}`);
-    logger.info(`Writing env vars to secret file: ${secretFile}`); // debug
     fs.writeFileSync(secretFile, envVars);
     args.push("--secret", `id=env,src=${secretFile}`);
   }
 
-  logger.info(`Running: docker ${args.join(" ")}`); // debug
   await new Promise<void>((resolve, reject) => {
     const child = spawn("docker", args, {
       stdio: ["inherit", "inherit", "inherit"],
