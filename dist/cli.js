@@ -5,9 +5,14 @@
  * Can be used standalone or as a GitHub Action.
  */
 import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { program } from "commander";
 import { deployApplication } from "./lib/deploy.js";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf-8"));
 program
+    .version(pkg.version)
     .option("--coolify-url <url>", "Coolify instance URL (or COOLIFY_URL env)")
     .option("--app-name <name>", "Application name in Coolify (or APP_NAME env)")
     .option("--image <image>", "Docker image to deploy (or IMAGE env)")
