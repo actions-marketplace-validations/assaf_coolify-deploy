@@ -6,19 +6,20 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { program } from "commander";
 import { deployApplication } from "./lib/deploy.js";
 
-const logger = {
-  info(message: string) {
-    console.info(message);
-  },
-  error(message: string) {
-    console.error(message);
-  },
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(
+  readFileSync(resolve(__dirname, "../package.json"), "utf-8"),
+) as {
+  version: string;
 };
 
 program
+  .version(pkg.version)
   .option("--coolify-url <url>", "Coolify instance URL (or COOLIFY_URL env)")
   .option("--app-name <name>", "Application name in Coolify (or APP_NAME env)")
   .option("--image <image>", "Docker image to deploy (or IMAGE env)")
@@ -65,19 +66,19 @@ let token = options.coolifyToken ?? process.env.COOLIFY_TOKEN;
 
 if (!token && options.coolifyTokenFile) {
   if (!existsSync(options.coolifyTokenFile)) {
-    logger.error(`Token file not found: ${options.coolifyTokenFile}`);
+    console.error(`Token file not found: ${options.coolifyTokenFile}`);
     process.exit(1);
   }
   token = readFileSync(options.coolifyTokenFile, "utf-8").trim();
 }
 
 if (!coolifyURL || !appName || !image || !token) {
-  logger.error("Missing required options:");
-  if (!coolifyURL) logger.error("  --coolify-url or COOLIFY_URL");
-  if (!appName) logger.error("  --app-name or APP_NAME");
-  if (!image) logger.error("  --image or IMAGE");
+  console.error("Missing required options:");
+  if (!coolifyURL) console.error("  --coolify-url or COOLIFY_URL");
+  if (!appName) console.error("  --app-name or APP_NAME");
+  if (!image) console.error("  --image or IMAGE");
   if (!token)
-    logger.error("  --coolify-token, COOLIFY_TOKEN, or --coolify-token-file");
+    console.error("  --coolify-token, COOLIFY_TOKEN, or --coolify-token-file");
   process.exit(1);
 }
 
@@ -86,7 +87,7 @@ const context = options.context ?? ".";
 let envVars: string | undefined;
 if (options.envFile) {
   if (!existsSync(options.envFile)) {
-    logger.error(`Env file not found: ${options.envFile}`);
+    console.error(`Env file not found: ${options.envFile}`);
     process.exit(1);
   }
   envVars = readFileSync(options.envFile, "utf-8");
@@ -102,13 +103,18 @@ try {
     healthcheckPath,
     healthcheckTimeout,
     context,
-    logger,
+    logger: {
+      // oxlint-disable
+      debug: (message: string) => console.debug(message),
+      error: (message: string) => console.error(message),
+      info: (message: string) => console.info(message),
+    },
   });
-  logger.info(`Deployment UUID: ${deploymentUUID}`);
+  console.info(`Deployment UUID: ${deploymentUUID}`);
   process.exit(0);
 } catch (error) {
   const message =
     error instanceof Error ? error.message : "An unknown error occurred";
-  logger.error(message);
+  console.error(message);
   process.exit(1);
 }

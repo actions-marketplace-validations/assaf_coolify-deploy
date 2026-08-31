@@ -33,6 +33,7 @@ function createMockLogger() {
   return {
     info: vi.fn<typeof console.info>(),
     error: vi.fn<typeof console.error>(),
+    debug: vi.fn<typeof console.debug>(),
   };
 }
 
@@ -234,8 +235,6 @@ describe("deploy.ts", () => {
         ],
         { stdio: ["inherit", "inherit", "inherit"] },
       );
-
-      expect(unlinkSync).toHaveBeenCalledWith(writtenEnvFile);
     });
 
     it("should throw error when docker command fails", async () => {

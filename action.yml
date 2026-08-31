@@ -18,6 +18,9 @@ inputs:
   env-vars:
     description: "Environment variables in dotenv format"
     required: false
+  env-file:
+    description: "Path to a file containing environment variables for build (dotenv format)"
+    required: false
   healthcheck-path:
     description: "Healthcheck path (default: /)"
     required: false

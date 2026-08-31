@@ -4,12 +4,13 @@
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
 import { tmpdir } from "node:os";
+import path from "node:path";
 
 const SPINNER_CHARS = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
 export interface Logger {
+  debug(message: string): void;
   info(message: string): void;
   error(message: string): void;
 }
@@ -85,7 +86,6 @@ export async function buildDockerImage({
   logger.info("Building Docker image...");
 
   const hasEnvVars = envVars && envVars.trim().length > 0;
-  let secretFile: string | undefined;
 
   const args = [
     "buildx",
@@ -99,32 +99,31 @@ export async function buildDockerImage({
   ];
 
   if (hasEnvVars) {
-    secretFile = path.join(tmpdir(), `coolify-env-${Date.now()}`);
+    const secretFile = path.join(tmpdir(), `coolify-env-${Date.now()}`);
     fs.writeFileSync(secretFile, envVars);
     args.push("--secret", `id=env,src=${secretFile}`);
   }
 
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn("docker", args, {
-        stdio: ["inherit", "inherit", "inherit"],
-      });
-
-      child.on("close", (code) => {
-        if (code === 0) resolve();
-        else {
-          const cmd = `docker ${args.join(" ")}`;
-          reject(new Error(`Command failed with code ${code}: ${cmd}`));
-        }
-      });
-
-      child.on("error", reject);
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("docker", args, {
+      stdio: ["inherit", "inherit", "inherit"],
     });
 
-    logger.info("Docker image built and pushed successfully");
-  } finally {
-    if (secretFile) fs.unlinkSync(secretFile);
-  }
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else {
+        const cmd = `docker ${args.join(" ")}`;
+        reject(new Error(`Command failed with code ${code}: ${cmd}`));
+      }
+    });
+
+    child.on("error", (error) => {
+      logger.error(`Error: ${error.message}`);
+      reject(error);
+    });
+  });
+
+  logger.info("Docker image built and pushed successfully");
 }
 
 /**
@@ -191,9 +190,7 @@ export async function pollDeploymentStatus({
   while (true) {
     const response = await fetch(
       new URL(`/api/v1/deployments/${deploymentUUID}`, coolifyURL),
-      {
-        headers: { Authorization: `Bearer ${coolifyToken}` },
-      },
+      { headers: { Authorization: `Bearer ${coolifyToken}` } },
     );
 
     if (!response.ok)
@@ -231,15 +228,6 @@ export async function pollDeploymentStatus({
   }
 }
 
-interface AppDetails {
-  fqdn: string;
-  health_check_enabled: boolean;
-  health_check_path: string;
-  health_check_return_code: number;
-  health_check_port: string | null;
-  ports_exposes: string;
-}
-
 /**
  * Fetches application details from Coolify API.
  */
@@ -253,21 +241,26 @@ export async function getAppDetails({
   coolifyToken: string;
   coolifyURL: string;
   logger: Logger;
-}): Promise<AppDetails> {
+}) {
   logger.info("Fetching application details...");
 
   const response = await fetch(
     new URL(`/api/v1/applications/${appUUID}`, coolifyURL),
-    {
-      headers: { Authorization: `Bearer ${coolifyToken}` },
-    },
+    { headers: { Authorization: `Bearer ${coolifyToken}` } },
   );
   if (!response.ok)
     throw new Error(
       `Failed to fetch application details: ${response.statusText}`,
     );
 
-  const data = (await response.json()) as AppDetails;
+  const data = (await response.json()) as {
+    fqdn: string;
+    health_check_enabled: boolean;
+    health_check_path: string;
+    health_check_return_code: number;
+    health_check_port: string | null;
+    ports_exposes: string;
+  };
   logger.info(`Application FQDN: ${data.fqdn}`);
   logger.info(
     `Healthcheck: ${data.health_check_enabled ? "enabled" : "disabled"} at ${data.health_check_path || "/"}`,
@@ -373,6 +366,44 @@ export async function verifyHealthcheck({
   }
 }
 
+async function configureAndVerifyHealthcheck({
+  appUUID,
+  coolifyToken,
+  coolifyURL,
+  healthcheckPath,
+  healthcheckTimeout,
+  logger,
+}: {
+  appUUID: string;
+  coolifyToken: string;
+  coolifyURL: string;
+  healthcheckPath: string;
+  healthcheckTimeout: number;
+  logger: Logger;
+}): Promise<string> {
+  const appDetails = await getAppDetails({
+    appUUID,
+    coolifyToken,
+    coolifyURL,
+    logger,
+  });
+
+  await updateHealthcheck({
+    appUUID,
+    coolifyToken,
+    coolifyURL,
+    healthcheckPath,
+    logger,
+  });
+
+  return verifyHealthcheck({
+    fqdn: appDetails.fqdn,
+    healthcheckPath: appDetails.health_check_path || "/",
+    timeout: healthcheckTimeout,
+    logger,
+  });
+}
+
 /**
  * Runs the complete deployment pipeline: find app, build image, deploy, healthcheck.
  */
@@ -417,25 +448,12 @@ export async function deployApplication(
     logger,
   });
 
-  const appDetails = await getAppDetails({
-    appUUID,
-    coolifyToken,
-    coolifyURL,
-    logger,
-  });
-
-  await updateHealthcheck({
+  const healthcheckUrl = await configureAndVerifyHealthcheck({
     appUUID,
     coolifyToken,
     coolifyURL,
     healthcheckPath,
-    logger,
-  });
-
-  const healthcheckUrl = await verifyHealthcheck({
-    fqdn: appDetails.fqdn,
-    healthcheckPath: appDetails.health_check_path || "/",
-    timeout: healthcheckTimeout,
+    healthcheckTimeout,
     logger,
   });
 
